@@ -1,29 +1,70 @@
 import requests
 from bs4 import BeautifulSoup
+import time
+import random
 
-def get_amazon_data(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }  # Using a User-Agent to avoid being blocked
-    response = requests.get(url, headers=headers)
+user_agents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+    # Add more user-agents as needed
+]
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        products = soup.find_all('div', class_='sg-col-inner')
+def scrape_from_url(url):
+    for _ in range(3):  # Try 3 times
+        try:
+            headers = {
+                "User-Agent": random.choice(user_agents)
+            }
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                print("Successfully fetched page. Response code: ", response.status_code)
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-        for product in products:
-            title_element = product.find('span', class_='a-size-base-plus a-color-base a-text-normal')
-            price_element = product.find('span', class_='a-offscreen')
+                # Find the content div
+                content_div = soup.find('div', class_='mw-parser-output')
 
-            if title_element and price_element:
-                title = title_element.get_text().strip()
-                price = price_element.get_text().strip()
+                if content_div:
+                    # Find all the headings
+                    headings = content_div.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
 
-                print("Title:", title)
-                print("Price:", price)
-                print()
-    else:
-        print("Failed to fetch page")
+                    current_section = None
+                    for heading in headings:
+                        # Exclude the "Contents" section
+                        if heading.get('id') == 'toc':
+                            continue
 
-url = "https://www.amazon.com/s?k=samsung+g9+monitor&crid=2S74VN5QEJ4XK&sprefix=samsung+g9+monitor%2Caps%2C100&ref=nb_sb_noss_1"
-get_amazon_data(url)
+                        # Extract heading text
+                        heading_text = heading.get_text().strip()
+
+                        # Determine the level of the heading
+                        level = int(heading.name[1])
+
+                        # Determine the section
+                        if level == 1:
+                            print(f"\n{'=' * 60}\n{heading_text}\n{'=' * 60}")
+                        elif level == 2:
+                            current_section = heading_text
+                            print(f"\n{'-' * 30}\n{heading_text}\n{'-' * 30}")
+                        else:
+                            if current_section:
+                                print(f"\n{current_section} - {heading_text}")
+                        print()
+
+                break  # Exit the loop if successful
+            else:
+                print("Failed to fetch page. Response code: ", response.status_code)
+                time.sleep(2)  # Wait for a while before retrying
+
+        except Exception as e:
+            print("Error:", e)
+            time.sleep(2)  # Wait for a while before retrying
+
+urlList = [
+    "https://en.wikipedia.org/wiki/Austin,_Texas",
+    "https://en.wikipedia.org/wiki/Cardamom",
+    "https://en.wikipedia.org/wiki/Keyboard_technology",
+    "https://en.wikipedia.org/wiki/Main_Page",
+    "https://en.wikipedia.org/wiki/Ultimate_Fighting_Championship",
+]
+scrape_from_url(random.choice(urlList))
