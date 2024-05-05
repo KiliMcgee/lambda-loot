@@ -4,11 +4,9 @@ try:
     import random
     import re
     import requests
-    import time
     from bs4 import BeautifulSoup
     from datetime import datetime
     from io import StringIO
-
     print("Imported all necessary function modules.")
 
 except Exception as e:
@@ -44,26 +42,26 @@ excluded_headings = [
 
 
 def lambda_handler(event, context):
-    scrape_from_url(random.choice(url_list))
+    return scrape_from_url(random.choice(url_list))
 
 
 def upload_csv_s3(data_dictionary, s3_bucket_name, csv_file_name):
     data_dict = data_dictionary
     data_dict_keys = data_dictionary[0].keys()
 
-    # creating a file buffer
+    # Creating a file buffer
     file_buff = StringIO()
 
-    # writing csv data to file buffer
+    # Writing csv data to file buffer
     writer = csv.DictWriter(file_buff, fieldnames=data_dict_keys)
     writer.writeheader()
     for data in data_dict:
         writer.writerow(data)
 
-    # creating s3 client connection
+    # Creating s3 client connection
     client = boto3.client('s3')
 
-    # placing file to S3, file_buff.getvalue() is the CSV body for the file
+    # Placing file to S3, file_buff.getvalue() is the CSV body for the file
     client.put_object(Body=file_buff.getvalue(), Bucket=s3_bucket_name, Key=csv_file_name)
     print('Done uploading to S3')
 
@@ -123,18 +121,18 @@ def scrape_from_url(url):
                         'CONTENT': 'N/A'
                     })
 
-                # create csv and upload in s3 bucket
+                # Create csv and upload to s3 bucket
                 dt_string = datetime.now().strftime("%Y-%m-%d_%H%M")
                 csv_file_name = 'looted_' + dt_string + '.csv'
                 print("Attempting to upload CSV {} to S3...".format(csv_file_name))
                 upload_csv_s3(scraped_data, 'looted-lambda-loot', csv_file_name)
 
-                break
+                return {
+                    'body': scraped_data
+                }
 
             else:
                 print("Failed to fetch page. Response code:", response.status_code)
-                time.sleep(2)  # Wait for a while before retrying
 
         except Exception as e:
             print("Encountered error while sending request: ", e)
-            time.sleep(2)  # Wait for a while before retrying
