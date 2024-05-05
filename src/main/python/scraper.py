@@ -1,70 +1,84 @@
-import requests
-from bs4 import BeautifulSoup
-import time
+import csv
 import random
+import re
+import requests
+import time
+from bs4 import BeautifulSoup
 
 user_agents = [
+    # Random user agents in an attempt to disguise scraping traffic
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
-    # Add more user-agents as needed
 ]
 
-def scrape_from_url(url):
-    for _ in range(3):  # Try 3 times
-        try:
-            headers = {
-                "User-Agent": random.choice(user_agents)
-            }
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                print("Successfully fetched page. Response code: ", response.status_code)
-                soup = BeautifulSoup(response.content, 'html.parser')
-
-                # Find the content div
-                content_div = soup.find('div', class_='mw-parser-output')
-
-                if content_div:
-                    # Find all the headings
-                    headings = content_div.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-
-                    current_section = None
-                    for heading in headings:
-                        # Exclude the "Contents" section
-                        if heading.get('id') == 'toc':
-                            continue
-
-                        # Extract heading text
-                        heading_text = heading.get_text().strip()
-
-                        # Determine the level of the heading
-                        level = int(heading.name[1])
-
-                        # Determine the section
-                        if level == 1:
-                            print(f"\n{'=' * 60}\n{heading_text}\n{'=' * 60}")
-                        elif level == 2:
-                            current_section = heading_text
-                            print(f"\n{'-' * 30}\n{heading_text}\n{'-' * 30}")
-                        else:
-                            if current_section:
-                                print(f"\n{current_section} - {heading_text}")
-                        print()
-
-                break  # Exit the loop if successful
-            else:
-                print("Failed to fetch page. Response code: ", response.status_code)
-                time.sleep(2)  # Wait for a while before retrying
-
-        except Exception as e:
-            print("Error:", e)
-            time.sleep(2)  # Wait for a while before retrying
-
-urlList = [
+url_list = [
     "https://en.wikipedia.org/wiki/Austin,_Texas",
     "https://en.wikipedia.org/wiki/Cardamom",
     "https://en.wikipedia.org/wiki/Keyboard_technology",
     "https://en.wikipedia.org/wiki/Main_Page",
     "https://en.wikipedia.org/wiki/Ultimate_Fighting_Championship",
 ]
-scrape_from_url(random.choice(urlList))
+
+def print_heading(text, level):
+    depth = (7 - level) * 10
+    if depth < 10:
+        depth = 10
+    elif depth > 70:
+        depth = 70
+    print(f"\n{'=' * depth}{' ' + text + ' '}{'=' * depth}")
+
+def scrape_from_url(url):
+    for _ in range(3):  # Try 3 times to accommodate blocked requests
+        try:
+            headers = {
+                "User-Agent": random.choice(user_agents)
+            }
+            response = requests.get(url, headers=headers)
+
+            if response.status_code == 200:
+                print("Successfully fetched page {}. Response code: {}".format(url, response.status_code))
+                soup = BeautifulSoup(response.content, 'html.parser')
+
+                # Find the content div
+                content_div = soup.find('div', id='bodyContent')
+
+                if content_div:
+                    # Open CSV file for writing
+                    with open('looted.csv', mode='w', newline='', encoding='utf-8') as file:
+                        writer = csv.writer(file)
+                        writer.writerow(['HEADING', 'LEVEL', 'CONTENT'])
+
+                        # Find all the headings
+                        headings = content_div.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+
+                        for heading in headings:
+                            # Extract heading text and remove all [edit] links
+                            heading_text = heading.get_text().strip()
+                            heading_text = re.sub("\[edit\]", "", heading_text)
+
+                            # Determine the level of the heading
+                            level = int(heading.name[1])
+
+                            # Find the next sibling, which is usually a paragraph or a list
+                            sibling = heading.find_next_sibling(['p', 'ul', 'ol'])
+                            if sibling:
+                                # Extract up to 150 characters, stripping unnecessary whitespace
+                                text = sibling.get_text()[:150].strip()
+                                text = re.sub("\s+", ", ", text)
+                                if len(text) > 147:
+                                    text = text[:147] + '...'  # Append ellipsis if more than 147 characters
+
+                                # Write to CSV
+                            writer.writerow([heading_text, level, text or 'No sibling text found.'])
+                break
+
+            else:
+                print("Failed to fetch page. Response code:", response.status_code)
+                time.sleep(2)  # Wait for a while before retrying
+
+        except Exception as e:
+            print("Encountered error while sending request: ", e)
+            time.sleep(2)  # Wait for a while before retrying
+
+scrape_from_url(random.choice(url_list))
