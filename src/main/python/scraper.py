@@ -16,17 +16,22 @@ url_list = [
     "https://en.wikipedia.org/wiki/Austin,_Texas",
     "https://en.wikipedia.org/wiki/Cardamom",
     "https://en.wikipedia.org/wiki/Keyboard_technology",
-    "https://en.wikipedia.org/wiki/Main_Page",
+    "https://en.wikipedia.org/wiki/Denby_Pottery_Company",
+    "https://en.wikipedia.org/wiki/Computer_security",
+    "https://en.wikipedia.org/wiki/Prusa_i3",
+    "https://en.wikipedia.org/wiki/Gross_domestic_product",
     "https://en.wikipedia.org/wiki/Ultimate_Fighting_Championship",
 ]
 
-def print_heading(text, level):
-    depth = (7 - level) * 10
-    if depth < 10:
-        depth = 10
-    elif depth > 70:
-        depth = 70
-    print(f"\n{'=' * depth}{' ' + text + ' '}{'=' * depth}")
+excluded_headings = [
+    'Bibliography',
+    'External links',
+    'Further reading',
+    'Gallery',
+    'Notes',
+    'References',
+    'See also',
+]
 
 def scrape_from_url(url):
     for _ in range(3):  # Try 3 times to accommodate blocked requests
@@ -57,6 +62,10 @@ def scrape_from_url(url):
                             heading_text = heading.get_text().strip()
                             heading_text = re.sub("\[edit\]", "", heading_text)
 
+                            # Skip excluded headings
+                            if heading_text in excluded_headings:
+                                continue
+
                             # Determine the level of the heading
                             level = int(heading.name[1])
 
@@ -65,7 +74,7 @@ def scrape_from_url(url):
                             if sibling:
                                 # Extract up to 150 characters, stripping unnecessary whitespace
                                 text = sibling.get_text()[:150].strip()
-                                text = re.sub("\s+", ", ", text)
+                                text = re.sub("[\t\n]+", ", ", text)
                                 if len(text) > 147:
                                     text = text[:147] + '...'  # Append ellipsis if more than 147 characters
 
